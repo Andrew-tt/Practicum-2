@@ -1,16 +1,15 @@
 ---
-title: "Practi-2"
-output: html_document
+title: "Practicum2 - Team Infinity"
+authors: Xirui Tang<tang.xir@northeastern.edu>, Viral Tagdiwala<tagdiwala.v@northeastern.edu>, Dhwanil Shah<shah.dhwan@northeastern.edu>, Zongrui Liu<liu.zongr@northeastern.edu>, Komal Shah<shah.koma@northeastern.edu>
+output: html_notebook
 ---
 
 ### Part 1.1 Create a normalized relational schema
 
 In the design, we created 5 tables named Journal,Article,History,CopyRight and Author.
 
-
-https://lucid.app/lucidchart/d0c79371-862e-4f7c-a26a-675d442d3669/edit?viewport_loc=-3168%2C1190%2C2406%2C1158%2C0_0&invitationId=inv_479f45f2-d4c9-4514-8249-fbaeed3fb174
-
-
+[Lucid chart link to ERD](https://lucid.app/lucidchart/d0c79371-862e-4f7c-a26a-675d442d3669/edit?viewport_loc=-3168%2C1190%2C2406%2C1158%2C0_0&invitationId=inv_479f45f2-d4c9-4514-8249-fbaeed3fb174)
+![ERD image](ERD-TeamInfinity.png)
 
 ### Part 1.2 Realize the Relational Schema in SQLite
 
@@ -18,21 +17,22 @@ First, we start loading library
 ```{r}
 library(XML)
 library(RSQLite)
+#install.packages("dplyr")
+library(dplyr)
+#install.packages("sqldf")
+library(sqldf)
 ```
 
 Second, we set up the file and path.
 ```{r }
-path <- "/Users/andrewt/Desktop/Practicum-2/"
 fn <- "pubmed_sample.xml"
-fpn = paste0(path, fn)
 dbfn <- "pubmed.db"
-dbfpn = paste0(path, dbfn)
 ```
 
-Third, we make connection to dataBase. 
+Third, we make connection to dataBase and enabling foreign keys.
 ```{r, include=FALSE}
-PADBcon <- dbConnect(RSQLite::SQLite(), dbfpn)
-
+PADBcon <- dbConnect(RSQLite::SQLite(), dbfn)
+dbExecute(PADBcon, "PRAGMA foreign_keys = ON")
 ```
 
 
@@ -40,92 +40,451 @@ PADBcon <- dbConnect(RSQLite::SQLite(), dbfpn)
 
 Because of foreign key in Table Journal and Author which would be used in table Article, Copyright and History, Table Journal and Author should be inserted first and then we creating following tables.
 
-Drop tables Journal.
-```{sql, connection = "PADBcon"}
+Drop table Author_Article_Ref
+```{sql connection = "PADBcon"}
+drop table if exists Author_Article_Ref;
+```
+
+Drop table Publication_Article_Ref
+```{sql connection = "PADBcon"}
+drop table if exists Publication_Article_Ref;
+```
+
+Drop table History.
+```{sql connection = "PADBcon"}
+drop table if exists History;
+```
+
+Drop table Article.
+```{sql connection = "PADBcon"}
+drop table if exists Article;
+```
+
+Drop table Journal.
+```{sql connection = "PADBcon"}
 drop table if exists Journal;
 ```
+
+Drop table Author.
+```{sql connection = "PADBcon"}
+drop table if exists Author;
+```
+
+Drop table Publication
+```{sql connection = "PADBcon"}
+drop table if exists Publication;
+```
+
 Create table Journal
-```{sql, connection = "PADBcon"}
+```{sql connection = "PADBcon"}
 create table Journal (
-  Journal_id integer,
+  Journal_Id integer PRIMARY KEY AUTOINCREMENT,
   ISSN text,
-  Volumn integer,
-  Issue integer,
-  Title text,
-  ISOAbbreviation text,
+  Volume integer NOT NULL,
+  Issue integer NOT NULL,
+  CiteMedium text NOT NULL,
+  Title text NOT NULL,
+  ISOAbbreviation text NOT NULL,
   Year integer,
   Month Text
 );
 ```
 
-Drop tables Author.
-```{sql, connection = "PADBcon"}
-drop table if exists Author;
-```
 Create table Author
-```{sql, connection = "PADBcon"}
+```{sql connection = "PADBcon"}
 create table Author (
-  Author_id integer,
-  LastName text,
-  ForeName text,
-  Initials text,
+  Author_Id integer PRIMARY KEY AUTOINCREMENT,
+  LastName text NOT NULL,
+  ForeName text NOT NULL,
+  Initials text NOT NULL,
   Affiliation text
 );
 ```
 
-
-Drop tables article.
-```{sql, connection = "PADBcon"}
-drop table if exists Article;
-```
-Create article table
-```{sql, connection = "PADBcon"}
+Create table Article
+```{sql connection = "PADBcon"}
 create table Article (
   PMID integer,
-  Journal_id integer,
-  ArticleTitle text,
+  Journal_Id integer,
+  ArticleTitle text NOT NULL,
   Pagination text,
-  Language text,
+  Language text NOT NULL,
+  ArticleDate date,
+  PubModel text NOT NULL,
   primary key (PMID),
-  foreign key (Journal_id) references Journal(Journal_id)
+  foreign key (Journal_Id) references Journal(Journal_Id)
 );
 ```
 
-Drop tables History.
-```{sql drop tables history, connection = "PADBcon"}
-drop table if exists History;
-```
-
-Create history table
-```{sql ,connection = "PADBcon"}
+Create table History
+```{sql connection = "PADBcon"}
 create table History (
-  History_id integer,
+  History_Id integer PRIMARY KEY AUTOINCREMENT,
   PMID integer,
-  Day integer,
-  Month integer,
-  Status text,
-  
-  primary key (History_id),
+  HistoryDate date,
+  Status text NOT NULL,
   foreign key (PMID) references Article(PMID)
 );
 ```
 
-Drop tables copyright
-```{sql, connection = "PADBcon"}
-drop table if exists Copyright;
-```
-
-Create tables copyright
-```{sql, connection = "PADBcon"}
-create table copyright (
-  Record_id integer,
+Create table Author_Article_Ref
+```{sql connection = "PADBcon"}
+create table Author_Article_Ref (
+  Record_Id integer PRIMARY KEY AUTOINCREMENT,
   PMID integer,
-  Author_id integer,
-  primary key (Record_id),
+  Author_Id integer,
   foreign key (PMID) references Article(PMID),
-  foreign key (Author_id) references Author(Author_id)
+  foreign key (Author_Id) references Author(Author_Id)
 );
-
-
 ```
 
+Create table Publication
+```{sql connection = "PADBcon"}
+create table Publication (
+  Publication_Id integer PRIMARY KEY AUTOINCREMENT,
+  PublicationType text
+);
+```
+
+Create table Publication_Article_Ref
+```{sql connection = "PADBcon"}
+create table Publication_Article_Ref (
+  Ref_Id integer PRIMARY KEY AUTOINCREMENT,
+  PMID integer,
+  Publication_Id integer,
+  foreign key (PMID) references Article(PMID),
+  foreign key (Publication_Id) references Publication(Publication_Id)
+);
+```
+
+### Part 1.3 Extract and transform the data from the XML and then load into the appropriate tables in the database.
+```{r}
+xmlObj <- xmlParse(fn)
+root <- xmlRoot(xmlObj)
+numPO <- xmlSize(root)
+```
+
+#### Parsing Journals
+```{r}
+parseJournal <- function (anJournalNode)
+{
+  # parse the journal into its components
+  ISSN <- xmlValue(anJournalNode[[1]])
+  
+  journal_issue <- anJournalNode[[2]]
+  
+  Volume <- as.numeric(xmlValue(journal_issue[[1]]))
+  Issue <- as.numeric(xmlValue(journal_issue[[2]]))
+  CiteMedium <- xmlAttrs(journal_issue)[1]
+  
+  Title <- xmlValue(anJournalNode[[3]])
+  ISOAbbreviation <- xmlValue(anJournalNode[[4]])
+  
+  pub_date <- journal_issue[[3]]
+  Year <- xmlValue(pub_date[[1]])
+  
+  whole <- strsplit(Year, " ")
+  if(length(whole[[1]]) == 1){
+    Month <- xmlValue(pub_date[[2]])
+  }else{
+    Year <- whole[[1]][1]
+    Month <- whole[[1]][2]
+  }
+  Year <- as.numeric(Year)
+  newJournal.df <- data.frame(ISSN, Volume, Issue, CiteMedium, Title, ISOAbbreviation, Year, Month, stringsAsFactors=FALSE)
+  
+  return(newJournal.df)
+}
+```
+
+#### Creating Journal dataframe
+```{r}
+Journals <- data.frame (ISSN = character(),
+                          Volume = integer(),
+                          Issue = integer(),
+                          CiteMedium = character(),
+                          Title = character(),
+                          ISOAbbreviation = character(),
+                          Year = integer(),
+                          Month = character(),
+                          stringsAsFactors=FALSE)
+
+xpathEx <- "//Journal"
+journal_nodes <- xpathSApply(xmlObj, xpathEx)
+for (i in 1:length(journal_nodes)){
+  journal <- journal_nodes[[i]]
+  df <- parseJournal(journal)
+  join <- intersect(Journals,df)
+  if(nrow(join) == 0){
+    Journals <- rbind(df,Journals)
+  }
+}
+
+# Adding primary key
+Journals <- tibble::rowid_to_column(Journals, "Journal_Id")
+
+head(Journals)
+```
+
+#### Parsing Authors
+```{r}
+parseAuthor <- function (anAuthorNode)
+{
+  # parse the author into its components
+  LastName <- xmlValue(anAuthorNode[[1]])
+  ForeName <- xmlValue(anAuthorNode[[2]])
+  Initials <- xmlValue(anAuthorNode[[3]])
+  Affiliation <- xmlValue(anAuthorNode[[4]])
+  
+  newAuthor.df <- data.frame(LastName, ForeName, Initials, Affiliation, stringsAsFactors=FALSE)
+  
+  return(newAuthor.df)
+}
+```
+
+#### Creating Author dataframe
+```{r}
+Authors <- data.frame (LastName = character(),
+                          ForeName = character(),
+                          Initials = character(),
+                          Affiliation = character(),
+                         stringsAsFactors=FALSE)
+
+xpathEx <- "//Author"
+author_nodes <- xpathSApply(xmlObj, xpathEx)
+for (i in 1:length(author_nodes)){
+  author <- author_nodes[[i]]
+  df <- parseAuthor(author)
+  join <- intersect(Authors,df)
+  if(nrow(join) == 0){
+    Authors <- rbind(df,Authors)
+  }
+}
+
+# Adding primary key
+Authors <- tibble::rowid_to_column(Authors, "Author_Id")
+
+head(Authors)
+```
+
+#### Parsing Publications
+```{r}
+parsePublication <- function (anPublicationNode)
+{
+  # parse the publication into its components
+  PublicationType <- xmlValue(anPublicationNode[[1]])
+  
+  newPublication.df <- data.frame(PublicationType, stringsAsFactors=FALSE)
+  
+  return(newPublication.df)
+}
+```
+
+#### Creating Publication dataframe
+```{r}
+Publications <- data.frame (PublicationType = character(),
+                         stringsAsFactors=FALSE)
+
+xpathEx <- "//PublicationType"
+publication_nodes <- xpathSApply(xmlObj, xpathEx)
+for (i in 1:length(publication_nodes)){
+  publication <- publication_nodes[[i]]
+  df <- parsePublication(publication)
+  join <- intersect(Publications,df)
+  if(nrow(join) == 0){
+    Publications <- rbind(df,Publications)
+  }
+}
+
+# Adding primary key
+Publications <- tibble::rowid_to_column(Publications, "Publication_Id")
+
+head(Publications)
+```
+
+#### Parsing Articles
+```{r}
+parseArticle <- function (PMID, anArticleNode)
+{
+  
+  # parse the article into its components
+  ISSN <- xmlValue(anArticleNode[[1]][[1]])
+  Issue <- as.numeric(xmlValue(anArticleNode[[1]][[2]][[2]]))
+  Journal_Id <- sqldf(sprintf("Select Journal_id from Journals where ISSN = '%s' and Issue = %i",ISSN,Issue))
+  ArticleTitle <- xmlValue(anArticleNode[[2]])
+  Pagination <- xmlValue(anArticleNode[[3]][[1]])
+  
+  xpathEx <- paste("//Article[../PMID = ",PMID, "]/Language")
+  lang <- xpathSApply(anArticleNode, xpathEx)
+  Language <- xmlValue(lang)
+  
+  xpathEx <- paste("//Article[../PMID = ",PMID, "]/ArticleDate")
+  date <- xpathSApply(anArticleNode, xpathEx)
+  if(length(xmlValue(date)) != 0){
+    ArticleDate <- xmlValue(date)
+  } else{
+    ArticleDate <- ""
+  }
+  
+  PubModel <- xmlAttrs(anArticleNode)[1]
+  
+  newArticle.df <- data.frame(PMID, Journal_Id, ArticleTitle, Pagination, Language, ArticleDate, PubModel, stringsAsFactors=FALSE)
+  
+  return(newArticle.df)
+}
+```
+
+#### Creating Article dataframe
+```{r}
+Articles <- data.frame (PMID = integer(),
+                        Journal_Id = integer(),
+                        ArticleTitle = character(),
+                        Pagination = character(),
+                        Language = character(),
+                        ArticleDate = character(),
+                        PubModel = character(),
+                        stringsAsFactors=FALSE)
+
+xpathEx <- "//Article | //Article/../PMID"
+article_nodes <- xpathSApply(xmlObj, xpathEx)
+
+for (i in 1:xmlSize(article_nodes)){
+  if (i %% 2 == 1){
+    df <- parseArticle(as.numeric(xmlValue(article_nodes[[i]])), article_nodes[[i+1]])
+    join <- intersect(Articles,df)
+    if(nrow(join) == 0){
+      Articles <- rbind(df,Articles)
+    }
+  }
+}
+head(Articles)
+```
+
+#### Parsing History
+```{r}
+parseHistory <- function (PMID, anHistoryNode)
+{
+  
+  # parse the history into its components
+  HistoryDate <- xmlValue(anHistoryNode)
+  HistoryDate <- substr(HistoryDate, 1, 8)
+  Status <- xmlAttrs(anHistoryNode)[1]
+  
+  newHistory.df <- data.frame(PMID, HistoryDate, Status, stringsAsFactors=FALSE)
+  
+  return(newHistory.df)
+}
+```
+
+#### Creating History dataframe
+```{r}
+Histories <- data.frame (PMID = integer(),
+                        HistoryDate = character(),
+                        Status = character(),
+                        stringsAsFactors=FALSE)
+
+xpathEx <- "//MedlineCitation/PMID"
+PMID_nodes <- xpathSApply(xmlObj, xpathEx, xmlValue)
+
+for (i in 1:xmlSize(PMID_nodes)){
+  PMID <- PMID_nodes[i]
+  xpathEx <- paste("//MedlineCitation[PMID = ", PMID, "]/../PubmedData/History/PubMedPubDate")
+  history_nodes <- xpathSApply(xmlObj, xpathEx)
+  for(j in 1:length(history_nodes)){
+    df <- parseHistory(as.numeric(PMID), history_nodes[[j]])
+    join <- intersect(Histories,df)
+    if(nrow(join) == 0){
+      Histories <- rbind(df,Histories)
+    }
+  }
+}
+# Adding primary key
+Histories <- tibble::rowid_to_column(Histories, "History_Id")
+
+head(Histories)
+```
+
+#### Creating Author_Article_Ref dataframe
+```{r}
+Temp = data.frame (PMID = integer(), 
+                    LastName = character(),
+                    ForeName = character(),
+                    Initials = character(),
+                    Affiliation = character(),
+                    stringsAsFactors=FALSE)
+
+xpathEx <- "//MedlineCitation/PMID"
+PMID_nodes <- xpathSApply(xmlObj, xpathEx, xmlValue)
+
+for (i in 1:xmlSize(PMID_nodes)){
+  PMID <- PMID_nodes[i]
+  xpathEx <- paste("//MedlineCitation[PMID = ", PMID, "]/Article/AuthorList/Author")
+  author_nodes <- xpathSApply(xmlObj, xpathEx)
+  for(j in 1:length(author_nodes)){
+    df <- parseAuthor(author_nodes[[j]])
+    df$PMID = as.numeric(PMID)
+    join <- intersect(Temp,df)
+    if(nrow(join) == 0){
+      Temp <- rbind(df,Temp)
+    }
+  }
+}
+Author_Article_Ref <- sqldf("select Temp.PMID, a.Author_id from Temp join Authors a on a.LastName = Temp.LastName and a.ForeName = Temp.ForeName and a.Initials = Temp.Initials and ((a.Affiliation is null and Temp.Affiliation is null) or a.Affiliation = Temp.Affiliation)")
+
+# Adding primary key
+Author_Article_Ref <- tibble::rowid_to_column(Author_Article_Ref, "Record_Id")
+
+head(Author_Article_Ref)
+```
+
+#### Creating Publication_Article_Ref dataframe
+```{r}
+Temp = data.frame (PMID = integer(), 
+                    PublicationType = character(),
+                    stringsAsFactors=FALSE)
+
+xpathEx <- "//MedlineCitation/PMID"
+PMID_nodes <- xpathSApply(xmlObj, xpathEx, xmlValue)
+
+for (i in 1:xmlSize(PMID_nodes)){
+  PMID <- PMID_nodes[i]
+  xpathEx <- paste("//MedlineCitation[PMID = ", PMID, "]/Article/PublicationTypeList/PublicationType")
+  publication_nodes <- xpathSApply(xmlObj, xpathEx)
+  for(j in 1:length(publication_nodes)){
+    df <- parsePublication(publication_nodes[[j]])
+    df$PMID = as.numeric(PMID)
+    join <- intersect(Temp,df)
+    if(nrow(join) == 0){
+      Temp <- rbind(df,Temp)
+    }
+  }
+}
+Publication_Article_Ref <- sqldf("select Temp.PMID, p.Publication_Id from Temp join Publications p on p.PublicationType = Temp.PublicationType")
+
+# Adding primary key
+Publication_Article_Ref <- tibble::rowid_to_column(Publication_Article_Ref, "Ref_Id")
+
+head(Publication_Article_Ref)
+```
+
+#### Writing data to Tables
+```{r}
+success <- dbWriteTable(PADBcon, "Journal", Journals, append = T, row.names = FALSE)
+success <- dbWriteTable(PADBcon, "Author", Authors, append = T, row.names = FALSE)
+success <- dbWriteTable(PADBcon, "Publication", Publications, append = T, row.names = FALSE)
+success <- dbWriteTable(PADBcon, "Article", Articles, append = T, row.names = FALSE)
+success <- dbWriteTable(PADBcon, "History", Histories, append = T, row.names = FALSE)
+success <- dbWriteTable(PADBcon, "Author_Article_Ref", Author_Article_Ref, append = T, row.names = FALSE)
+success <- dbWriteTable(PADBcon, "Publication_Article_Ref", Publication_Article_Ref, append = T, row.names = FALSE)
+```
+
+Closing DB connection
+```{r}
+dbDisconnect(PADBcon)
+```
+
+### Part 2.1 Create and populate a star schema with dimension and transaction fact tables.
+
+### Part 2.2 Create and populate a summary fact table.
+
+### Part 3.1 Write queries using your data warehouse to explore whether the publications show a seasonal pattern.
