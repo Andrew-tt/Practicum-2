@@ -484,15 +484,15 @@ success <- dbWriteTable(PADBcon, "Publication_Article_Ref", Publication_Article_
 ### Part 2.1 Create and populate a star schema with dimension and transaction fact tables.
 
 ```{sql connection = "PADBcon"}
-DROP TABLE IF EXISTS dimJournal
+DROP TABLE IF EXISTS Journal_Dimension
 ```
 
 ```{sql connection = "PADBcon"}
-DROP TABLE IF EXISTS dimAuthor
+DROP TABLE IF EXISTS Author_Dimension
 ```
 
 ```{sql connection = "PADBcon"}
-DROP TABLE IF EXISTS dimHistory
+DROP TABLE IF EXISTS History_Dimension
 ```
 
 ```{sql connection = "PADBcon"}
