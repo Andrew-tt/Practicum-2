@@ -478,13 +478,230 @@ success <- dbWriteTable(PADBcon, "Author_Article_Ref", Author_Article_Ref, appen
 success <- dbWriteTable(PADBcon, "Publication_Article_Ref", Publication_Article_Ref, append = T, row.names = FALSE)
 ```
 
+
+### Part 2
+
+### Part 2.1 Create and populate a star schema with dimension and transaction fact tables.
+
+```{sql connection = "PADBcon"}
+DROP TABLE IF EXISTS Journal_Dimension
+```
+
+```{sql connection = "PADBcon"}
+DROP TABLE IF EXISTS Author_Dimension
+```
+
+```{sql connection = "PADBcon"}
+DROP TABLE IF EXISTS History_Dimension
+```
+
+```{sql connection = "PADBcon"}
+DROP TABLE IF EXISTS Article_fact
+```
+
+```{sql connection = "PADBcon"}
+CREATE TABLE Author_Dimension (
+  Author_id INT,
+  PMID INT,
+  LastName VARCHAR(32),
+  ForeName VARCHAR(32),
+  PRIMARY KEY (Author_id)
+  FOREIGN KEY (PMID) REFERENCES PubMed_Article(PMID)
+);
+```
+
+```{sql connection = "PADBcon"}
+CREATE TABLE History_Dimension (
+  History_id INT NOT NULL,
+  Year INT,
+  Month INT,
+  Day INT,
+  PRIMARY KEY (History_id)
+);
+```
+
+```{sql connection = "PADBcon"}
+CREATE TABLE Article_Fact (
+  PMID INT,
+  History_id INT,
+  Author_id INT,
+  ISSN INT,
+  PRIMARY KEY (PMID),
+  FOREIGN KEY (PMID) REFERENCES Author(PMID),
+  FOREIGN KEY (History_id) REFERENCES History(History_id),
+  FOREIGN KEY (Author_id) REFERENCES Author(Author_id),
+  FOREIGN KEY (ISSN) REFERENCES Journal(ISSN)
+);
+```
+
+```{sql connection = "PADBcon"}
+CREATE TABLE Journal_Dimension (
+  ISSN INT,
+  Volume INT,
+  Issue INT,
+  Title VARCHAR(250),
+  ISOAbbreviation VARCHAR(32),
+  PRIMARY KEY (ISSN)
+);
+```
+
+
+Transform data before loading it into fact and summary tables
+```{r}
+df.Journal <- "create"
+df.PubMed_Article <- "make"
+df.History <- "start"
+
+
+xpathEx <- "//ISSN"
+df.Journal$ISSN <- xpathSApply(xmlObj,xpathEx,xmlValue)
+
+xpathEx <- "//Volume"
+df.Journal$Volume <- xpathSApply(xmlObj,xpathEx,xmlValue)
+
+xpathEx <- "//Issue"
+df.Journal$Issue <- xpathSApply(xmlObj,xpathEx,xmlValue)
+
+xpathEx <- "//Journal/Title"
+df.Journal$Title <- xpathSApply(xmlObj,xpathEx, xmlValue)
+
+xpathEx <- "//Journal/ISOAbbreviation"
+df.Journal$ISOAbbreviation <- xpathSApply(xmlObj,xpathEx, xmlValue)
+
+df.Journal[1] <- NULL
+df.Journal_convert <- as.data.frame(df.Journal)
+
+xpathEx <- "//History/PubMedPubDate[@PubStatus='pubmed']/Year"
+df.History$Year <- xpathSApply(xmlObj,xpathEx, xmlValue)
+
+xpathEx <- "//History/PubMedPubDate[@PubStatus='pubmed']/Month"
+df.History$Month <- xpathSApply(xmlObj,xpathEx, xmlValue)
+
+xpathEx <- "//History/PubMedPubDate[@PubStatus='pubmed']/Day"
+df.History$Day <- xpathSApply(xmlObj,xpathEx, xmlValue)
+```
+
+
+```{r}
+df.History[1] <- NULL
+df.History_convert <- as.data.frame(df.History)
+n.History_convert <- nrow(df.History_convert)
+df.History_convert$History_id <- seq(1,n.History_convert)
+df.History_convert$History_id 
+df.History_convert
+
+
+xpathEx <- "//MedlineCitation/PMID"
+PMID <- xpathSApply(xmlObj,xpathEx, xmlValue)
+```
+
+
+```{r}
+df.PubMed_Article$ISSN <- df.Journal$ISSN
+df.PubMed_Article$History_id <- df.History_convert$History_id
+df.PubMed_Article$PMID <- PMID
+
+df.Journal$ISSN
+
+```
+
+```{r}
+df.PubMed_Article_convert <- as.data.frame(df.PubMed_Article[c("ISSN", "History_id", "PMID")])
+df.PubMed_Article_convert
+
+
+xpathEx <- "//MedlineCitation[PMID='23874253']/Article/AuthorList/Author/LastName"
+Author_last <- xpathSApply(xmlObj, xpathEx, xmlValue)
+Author_last
+
+
+df.Author_total <- data.frame()
+df.Author_total
+
+datalist = list()
+
+```
+
+
+```{r}
+for (i in 1:19) {
+  df.Author <- "trial"
+  x <- paste0("//MedlineCitation[PMID='",as.numeric(PMID[i]),"' ]/Article/AuthorList/Author/LastName")
+  y <- paste0("//MedlineCitation[PMID='",as.numeric(PMID[i]),"' ]/Article/AuthorList/Author/ForeName")
+  last_name <- xpathSApply(xmlObj, x, xmlValue)
+  first_name <- xpathSApply(xmlObj, y, xmlValue)
+  
+  df.Author$LastName <- last_name
+  df.Author$FirstName <- first_name
+  for (x in 1:length(last_name)) {df.Author$PMID[x] <- PMID[i]}
+  df.Author_dim <- as.data.frame(df.Author)
+  datalist[[i]] <- df.Author_dim
+}
+df.Author_total <- do.call(rbind, datalist)
+df.Author_total[1] <- NULL
+
+
+df.Author_Unique <- df.Author_total[1:2] %>%
+  unique()
+df.Author_Unique$Author_id <- seq(1, nrow(df.Author_Unique))
+```
+
+```{r linkFKs}
+for (r in 1:nrow(df.Author_total)) {
+  a <- df.Author_Unique$Author_id[which
+                               (df.Author_Unique$LastName ==
+                                   df.Author_total$LastName[r] &
+                                   df.Author_Unique$FirstName ==
+                                   df.Author_total$FirstName[r]) ]
+  
+  df.Author_total$Author_id[r] <- a
+  
+}
+```
+
+
+Populate the said Fact and Summary Tables
+```{r}
+dbWriteTable(PADBcon, "Author_Dimension", df.Author_total, overwrite = T)
+```
+```{r}
+dbWriteTable(PADBcon, "Article_Fact", df.PubMed_Article_convert, overwrite = T)
+```
+```{r}
+dbWriteTable(PADBcon, "History_Dimension", df.History_convert, overwrite = T)
+```
+```{r}
+dbWriteTable(PADBcon, "Journal_Dimension", df.Journal_convert, overwrite = T)
+```
+
+```{sql connection = "PADBcon"}
+SELECT * FROM Author_Dimension;
+```
+
+```{sql connection = "PADBcon"}
+
+SELECT * FROM Article_Fact;
+```
+```{sql connection = "PADBcon"}
+
+SELECT * FROM History_Dimension;
+```
+```{sql connection = "PADBcon"}
+
+SELECT * FROM Journal_Dimension;
+```
+
+
+### Part 2.2 Create and populate a summary fact table.
+
+
+
 Closing DB connection
 ```{r}
 dbDisconnect(PADBcon)
 ```
 
-### Part 2.1 Create and populate a star schema with dimension and transaction fact tables.
 
-### Part 2.2 Create and populate a summary fact table.
+
 
 ### Part 3.1 Write queries using your data warehouse to explore whether the publications show a seasonal pattern.
