@@ -483,6 +483,8 @@ success <- dbWriteTable(PADBcon, "Publication_Article_Ref", Publication_Article_
 
 ### Part 2.1 Create and populate a star schema with dimension and transaction fact tables.
 
+![ERD image](Star_ERD.png)
+
 ```{sql connection = "PADBcon"}
 DROP TABLE IF EXISTS Journal_Dimension
 ```
@@ -696,12 +698,101 @@ SELECT * FROM Journal_Dimension;
 
 
 
-Closing DB connection
-```{r}
-dbDisconnect(PADBcon)
-```
+
+
 
 
 
 
 ### Part 3.1 Write queries using your data warehouse to explore whether the publications show a seasonal pattern.
+
+```{sql connection = "PADBcon"}
+
+SELECT count(*)as count, Quarter  
+            from (SELECT *, CASE when Month in (1,2,3) AND Year in(2011) then '2011_Q1'
+            when Month in (4,5,6) AND Year in (2011) then '2011_Q2'
+            when Month in (7,8,9) AND Year in (2011) then '2011_Q3'
+            when Month in (10,11,12) AND Year in (2011) then '2011_Q4'
+            when Month in (1,2,3) AND Year in(2012) then '2012_Q1' 
+            when Month in (4,5,6) AND Year in (2012) then '2012_Q2'
+            when Month in (7,8,9) AND Year in (2012) then '2012_Q3'
+            when Month in (10,11,12) AND Year in (2012) then '2012_Q4'
+            when Month in (1,2,3) AND Year in(2013) then '2013_Q1' 
+            when Month in (4,5,6) AND Year in (2013) then '2013_Q2'
+            when Month in (7,8,9) AND Year in (2013) then '2013_Q3'
+            when Month in (10,11,12) AND Year in (2013) then '2013_Q4'
+            end as Quarter from History_Dimension)
+            as  History_Dimension  group by Quarter
+```
+
+
+```{r}
+sql <- "SELECT count(*)as count, Quarter  
+            from (SELECT *, CASE when Month in (1,2,3) AND Year in(2011) then '2011_Q1'
+            when Month in (4,5,6) AND Year in (2011) then '2011_Q2'
+            when Month in (7,8,9) AND Year in (2011) then '2011_Q3'
+            when Month in (10,11,12) AND Year in (2011) then '2011_Q4'
+            when Month in (1,2,3) AND Year in(2012) then '2012_Q1' 
+            when Month in (4,5,6) AND Year in (2012) then '2012_Q2'
+            when Month in (7,8,9) AND Year in (2012) then '2012_Q3'
+            when Month in (10,11,12) AND Year in (2012) then '2012_Q4'
+            when Month in (1,2,3) AND Year in(2013) then '2013_Q1' 
+            when Month in (4,5,6) AND Year in (2013) then '2013_Q2'
+            when Month in (7,8,9) AND Year in (2013) then '2013_Q3'
+            when Month in (10,11,12) AND Year in (2013) then '2013_Q4'
+            end as Quarter from History_Dimension)
+            as  History_Dimension  group by Quarter"
+df1 <-dbGetQuery(PADBcon,sql)
+df1
+
+```
+
+```{r}
+library(dplyr)
+
+df1 = df1 %>% add_row(Quarter='2011_Q2',count = 0, .before = 2)
+df1 = df1 %>% add_row(Quarter='2013_Q2',count = 0, .before = 9)
+df1 = df1 %>% add_row(Quarter='2013_Q1',count = 0, .before = 9)
+df1
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(data=df1, aes(x=Quarter, y=count, group=1)) +
+  geom_line()+
+  geom_point(color='red')+labs(title="Number of journal publications for each quarter from 2011-2013")
+```
+
+
+```{sql connection = "PADBcon"}
+
+SELECT count(*)as count, Quarter  
+            from (SELECT *, CASE when Month in (1,2,3)  then 'Q1'
+            when Month in (4,5,6)  then 'Q2'
+            when Month in (7,8,9)  then 'Q3'
+            when Month in (10,11,12)  then 'Q4'
+            end as Quarter from History_Dimension)
+            as  History_Dimension  group by Quarter
+```
+
+```{r}
+sql <- "SELECT count(*)as count, Quarter  
+            from (SELECT *, CASE when Month in (1,2,3)  then 'Q1'
+            when Month in (4,5,6)  then 'Q2'
+            when Month in (7,8,9)  then 'Q3'
+            when Month in (10,11,12)  then 'Q4'
+            end as Quarter from History_Dimension)
+            as  History_Dimension  group by Quarter"
+
+df3 <-dbGetQuery(PADBcon,sql)
+
+ggplot(df3,aes(Quarter,count, group=1))+geom_point(color='red')+geom_line()+labs(title="Sum of journal publications by quarter")
+```
+
+
+
+Closing DB connection
+```{r}
+dbDisconnect(PADBcon)
+```
