@@ -699,6 +699,8 @@ SELECT * FROM Journal_Dimension;
 
 ### Part 2.2 Create and populate a summary fact table.
 
+![ERD image](part2_2.png)
+
 ```{sql connection=PADBcon}
 DROP TABLE IF EXISTS AllSummaries
 ```
