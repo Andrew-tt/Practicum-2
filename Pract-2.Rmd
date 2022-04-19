@@ -21,6 +21,9 @@ library(RSQLite)
 library(dplyr)
 #install.packages("sqldf")
 library(sqldf)
+
+options(sqldf.driver = "SQLite")
+
 ```
 
 Second, we set up the file and path.
@@ -170,19 +173,19 @@ parseJournal <- function (anJournalNode)
 {
   # parse the journal into its components
   ISSN <- xmlValue(anJournalNode[[1]])
-  
+
   journal_issue <- anJournalNode[[2]]
-  
+
   Volume <- as.numeric(xmlValue(journal_issue[[1]]))
   Issue <- as.numeric(xmlValue(journal_issue[[2]]))
   CiteMedium <- xmlAttrs(journal_issue)[1]
-  
+
   Title <- xmlValue(anJournalNode[[3]])
   ISOAbbreviation <- xmlValue(anJournalNode[[4]])
-  
+
   pub_date <- journal_issue[[3]]
   Year <- xmlValue(pub_date[[1]])
-  
+
   whole <- strsplit(Year, " ")
   if(length(whole[[1]]) == 1){
     Month <- xmlValue(pub_date[[2]])
@@ -192,7 +195,7 @@ parseJournal <- function (anJournalNode)
   }
   Year <- as.numeric(Year)
   newJournal.df <- data.frame(ISSN, Volume, Issue, CiteMedium, Title, ISOAbbreviation, Year, Month, stringsAsFactors=FALSE)
-  
+
   return(newJournal.df)
 }
 ```
@@ -235,9 +238,9 @@ parseAuthor <- function (anAuthorNode)
   ForeName <- xmlValue(anAuthorNode[[2]])
   Initials <- xmlValue(anAuthorNode[[3]])
   Affiliation <- xmlValue(anAuthorNode[[4]])
-  
+
   newAuthor.df <- data.frame(LastName, ForeName, Initials, Affiliation, stringsAsFactors=FALSE)
-  
+
   return(newAuthor.df)
 }
 ```
@@ -273,9 +276,9 @@ parsePublication <- function (anPublicationNode)
 {
   # parse the publication into its components
   PublicationType <- xmlValue(anPublicationNode[[1]])
-  
+
   newPublication.df <- data.frame(PublicationType, stringsAsFactors=FALSE)
-  
+
   return(newPublication.df)
 }
 ```
@@ -306,18 +309,18 @@ head(Publications)
 ```{r}
 parseArticle <- function (PMID, anArticleNode)
 {
-  
+
   # parse the article into its components
   ISSN <- xmlValue(anArticleNode[[1]][[1]])
   Issue <- as.numeric(xmlValue(anArticleNode[[1]][[2]][[2]]))
   Journal_Id <- sqldf(sprintf("Select Journal_id from Journals where ISSN = '%s' and Issue = %i",ISSN,Issue))
   ArticleTitle <- xmlValue(anArticleNode[[2]])
   Pagination <- xmlValue(anArticleNode[[3]][[1]])
-  
+
   xpathEx <- paste("//Article[../PMID = ",PMID, "]/Language")
   lang <- xpathSApply(anArticleNode, xpathEx)
   Language <- xmlValue(lang)
-  
+
   xpathEx <- paste("//Article[../PMID = ",PMID, "]/ArticleDate")
   date <- xpathSApply(anArticleNode, xpathEx)
   if(length(xmlValue(date)) != 0){
@@ -325,11 +328,11 @@ parseArticle <- function (PMID, anArticleNode)
   } else{
     ArticleDate <- ""
   }
-  
+
   PubModel <- xmlAttrs(anArticleNode)[1]
-  
+
   newArticle.df <- data.frame(PMID, Journal_Id, ArticleTitle, Pagination, Language, ArticleDate, PubModel, stringsAsFactors=FALSE)
-  
+
   return(newArticle.df)
 }
 ```
@@ -364,14 +367,14 @@ head(Articles)
 ```{r}
 parseHistory <- function (PMID, anHistoryNode)
 {
-  
+
   # parse the history into its components
   HistoryDate <- xmlValue(anHistoryNode)
   HistoryDate <- substr(HistoryDate, 1, 8)
   Status <- xmlAttrs(anHistoryNode)[1]
-  
+
   newHistory.df <- data.frame(PMID, HistoryDate, Status, stringsAsFactors=FALSE)
-  
+
   return(newHistory.df)
 }
 ```
@@ -406,7 +409,7 @@ head(Histories)
 
 #### Creating Author_Article_Ref dataframe
 ```{r}
-Temp = data.frame (PMID = integer(), 
+Temp = data.frame (PMID = integer(),
                     LastName = character(),
                     ForeName = character(),
                     Initials = character(),
@@ -439,7 +442,7 @@ head(Author_Article_Ref)
 
 #### Creating Publication_Article_Ref dataframe
 ```{r}
-Temp = data.frame (PMID = integer(), 
+Temp = data.frame (PMID = integer(),
                     PublicationType = character(),
                     stringsAsFactors=FALSE)
 
@@ -589,7 +592,7 @@ df.History[1] <- NULL
 df.History_convert <- as.data.frame(df.History)
 n.History_convert <- nrow(df.History_convert)
 df.History_convert$History_id <- seq(1,n.History_convert)
-df.History_convert$History_id 
+df.History_convert$History_id
 df.History_convert
 
 
@@ -632,7 +635,7 @@ for (i in 1:19) {
   y <- paste0("//MedlineCitation[PMID='",as.numeric(PMID[i]),"' ]/Article/AuthorList/Author/ForeName")
   last_name <- xpathSApply(xmlObj, x, xmlValue)
   first_name <- xpathSApply(xmlObj, y, xmlValue)
-  
+
   df.Author$LastName <- last_name
   df.Author$FirstName <- first_name
   for (x in 1:length(last_name)) {df.Author$PMID[x] <- PMID[i]}
@@ -655,9 +658,9 @@ for (r in 1:nrow(df.Author_total)) {
                                    df.Author_total$LastName[r] &
                                    df.Author_Unique$FirstName ==
                                    df.Author_total$FirstName[r]) ]
-  
+
   df.Author_total$Author_id[r] <- a
-  
+
 }
 ```
 
@@ -696,7 +699,41 @@ SELECT * FROM Journal_Dimension;
 
 ### Part 2.2 Create and populate a summary fact table.
 
+```{sql connection=PADBcon}
+DROP TABLE IF EXISTS AllSummaries
+```
 
+```{sql connection=PADBcon}
+CREATE TABLE temp AS SELECT * from Article_Fact JOIN Author_Dimension ON Article_Fact.PMID = Author_Dimension.PMID JOIN History_Dimension ON History_Dimension.History_id = Article_Fact.History_id JOIN Journal_Dimension ON Journal_Dimension.ISSN = Article_Fact.ISSN
+```
+
+```{sql connection=PADBcon}
+CREATE TABLE AllSummaries AS SELECT ISSN, History_id, PMID, LastName, FirstName, Author_id, Year, Month, Day, Volume, Issue, Title, ISOAbbreviation FROM temp
+```
+
+```{r}
+df.AllSummaries <- dbGetQuery(PADBcon, "SELECT ISSN, History_id, PMID, LastName, FirstName, Author_id, Year, Month, Day, Volume, Issue, Title, ISOAbbreviation FROM temp")
+df.AllSummaries$Month <- as.integer(df.AllSummaries$Month)
+df.AllSummaries$Year <- as.integer(df.AllSummaries$Year)
+df.AllSummaries
+```
+
+```{r}
+dbWriteTable(dbcon, "AllSummaries", df.AllSummaries, overwrite = T)
+```
+
+# Journal SUMMARY QUERY
+```{r}
+df.Journal_summ <- dbGetQuery(PADBcon, "SELECT Year, CASE WHEN Month <= 3 THEN '1' WHEN Month >= 4 AND Month <= 6 THEN '2' WHEN Month >= 7 AND Month <= 9 THEN '3' WHEN Month >= 10 THEN '4' END AS Quarter, ISSN, Title, count (DISTINCT PMID) AS NumArticles FROM AllSummaries GROUP BY Title ORDER BY Quarter")
+dbWriteTable(PADBcon, "Journal_Summary", df.Journal_summ, overwrite = T)
+```
+
+
+# Author Summary Table
+```{r}
+df.Author_summ <- dbGetQuery(PADBcon, "SELECT Year, CASE WHEN Month <= 3 THEN '1' WHEN Month >= 4 AND Month <= 6 THEN '2' WHEN Month >= 7 AND Month <= 9 THEN '3' WHEN Month >= 10 THEN '4' END AS Quarter, FirstName, LastName, Author_id, count(DISTINCT PMID) AS NumArticles FROM AllSummaries GROUP BY LastName ORDER BY Author_id")
+dbWriteTable(PADBcon, "Author_Summary", df.Author_summ, overwrite = T)
+```
 
 
 
@@ -709,16 +746,16 @@ SELECT * FROM Journal_Dimension;
 #### Create a plot shows Number of journal publications for each quarter from 2011-2013
 ```{sql connection = "PADBcon"}
 
-SELECT count(*)as count, Quarter  
+SELECT count(*)as count, Quarter
             from (SELECT *, CASE when Month in (1,2,3) AND Year in(2011) then '2011_Q1'
             when Month in (4,5,6) AND Year in (2011) then '2011_Q2'
             when Month in (7,8,9) AND Year in (2011) then '2011_Q3'
             when Month in (10,11,12) AND Year in (2011) then '2011_Q4'
-            when Month in (1,2,3) AND Year in(2012) then '2012_Q1' 
+            when Month in (1,2,3) AND Year in(2012) then '2012_Q1'
             when Month in (4,5,6) AND Year in (2012) then '2012_Q2'
             when Month in (7,8,9) AND Year in (2012) then '2012_Q3'
             when Month in (10,11,12) AND Year in (2012) then '2012_Q4'
-            when Month in (1,2,3) AND Year in(2013) then '2013_Q1' 
+            when Month in (1,2,3) AND Year in(2013) then '2013_Q1'
             when Month in (4,5,6) AND Year in (2013) then '2013_Q2'
             when Month in (7,8,9) AND Year in (2013) then '2013_Q3'
             when Month in (10,11,12) AND Year in (2013) then '2013_Q4'
@@ -728,16 +765,16 @@ SELECT count(*)as count, Quarter
 
 
 ```{r}
-sql <- "SELECT count(*)as count, Quarter  
+sql <- "SELECT count(*)as count, Quarter
             from (SELECT *, CASE when Month in (1,2,3) AND Year in(2011) then '2011_Q1'
             when Month in (4,5,6) AND Year in (2011) then '2011_Q2'
             when Month in (7,8,9) AND Year in (2011) then '2011_Q3'
             when Month in (10,11,12) AND Year in (2011) then '2011_Q4'
-            when Month in (1,2,3) AND Year in(2012) then '2012_Q1' 
+            when Month in (1,2,3) AND Year in(2012) then '2012_Q1'
             when Month in (4,5,6) AND Year in (2012) then '2012_Q2'
             when Month in (7,8,9) AND Year in (2012) then '2012_Q3'
             when Month in (10,11,12) AND Year in (2012) then '2012_Q4'
-            when Month in (1,2,3) AND Year in(2013) then '2013_Q1' 
+            when Month in (1,2,3) AND Year in(2013) then '2013_Q1'
             when Month in (4,5,6) AND Year in (2013) then '2013_Q2'
             when Month in (7,8,9) AND Year in (2013) then '2013_Q3'
             when Month in (10,11,12) AND Year in (2013) then '2013_Q4'
@@ -768,7 +805,7 @@ ggplot(data=df1, aes(x=Quarter, y=count, group=1)) +
 ####Create a plot shows sum of journal publications by quarter
 ```{sql connection = "PADBcon"}
 
-SELECT count(*)as count, Quarter  
+SELECT count(*)as count, Quarter
             from (SELECT *, CASE when Month in (1,2,3)  then 'Q1'
             when Month in (4,5,6)  then 'Q2'
             when Month in (7,8,9)  then 'Q3'
@@ -778,7 +815,7 @@ SELECT count(*)as count, Quarter
 ```
 
 ```{r}
-sql <- "SELECT count(*)as count, Quarter  
+sql <- "SELECT count(*)as count, Quarter
             from (SELECT *, CASE when Month in (1,2,3)  then 'Q1'
             when Month in (4,5,6)  then 'Q2'
             when Month in (7,8,9)  then 'Q3'
