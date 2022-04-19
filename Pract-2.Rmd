@@ -721,7 +721,7 @@ df.AllSummaries
 ```
 
 ```{r}
-dbWriteTable(dbcon, "AllSummaries", df.AllSummaries, overwrite = T)
+dbWriteTable(PADBcon, "AllSummaries", df.AllSummaries, overwrite = T)
 ```
 
 # Journal SUMMARY QUERY
@@ -739,8 +739,13 @@ dbWriteTable(PADBcon, "Author_Summary", df.Author_summ, overwrite = T)
 
 
 
+```{sql connection = "PADBcon"}
+SELECT * FROM Journal_Summary
+```
 
-
+```{sql connection = "PADBcon"}
+SELECT * FROM Author_Summary
+```
 
 
 ### Part 3.1 Write queries using your data warehouse to explore whether the publications show a seasonal pattern.
