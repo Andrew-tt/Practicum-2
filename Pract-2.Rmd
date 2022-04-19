@@ -1,7 +1,13 @@
 ---
 title: "Practicum2 - Team Infinity"
-authors: Xirui Tang<tang.xir@northeastern.edu>, Viral Tagdiwala<tagdiwala.v@northeastern.edu>, Dhwanil Shah<shah.dhwan@northeastern.edu>, Zongrui Liu<liu.zongr@northeastern.edu>, Komal Shah<shah.koma@northeastern.edu>
-output: html_notebook
+authors: Xirui Tang<tang.xir@northeastern.edu>, Viral Tagdiwala<tagdiwala.v@northeastern.edu>,
+  Dhwanil Shah<shah.dhwan@northeastern.edu>, Zongrui Liu<liu.zongr@northeastern.edu>,
+  Komal Shah<shah.koma@northeastern.edu>
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
 ---
 
 ### Part 1.1 Create a normalized relational schema
@@ -706,6 +712,10 @@ DROP TABLE IF EXISTS AllSummaries
 ```
 
 ```{sql connection=PADBcon}
+DROP TABLE IF EXISTS temp
+```
+
+```{sql connection=PADBcon}
 CREATE TABLE temp AS SELECT * from Article_Fact JOIN Author_Dimension ON Article_Fact.PMID = Author_Dimension.PMID JOIN History_Dimension ON History_Dimension.History_id = Article_Fact.History_id JOIN Journal_Dimension ON Journal_Dimension.ISSN = Article_Fact.ISSN
 ```
 
@@ -724,14 +734,14 @@ df.AllSummaries
 dbWriteTable(PADBcon, "AllSummaries", df.AllSummaries, overwrite = T)
 ```
 
-# Journal SUMMARY QUERY
+#### Journal SUMMARY QUERY
 ```{r}
 df.Journal_summ <- dbGetQuery(PADBcon, "SELECT Year, CASE WHEN Month <= 3 THEN '1' WHEN Month >= 4 AND Month <= 6 THEN '2' WHEN Month >= 7 AND Month <= 9 THEN '3' WHEN Month >= 10 THEN '4' END AS Quarter, ISSN, Title, count (DISTINCT PMID) AS NumArticles FROM AllSummaries GROUP BY Title ORDER BY Quarter")
 dbWriteTable(PADBcon, "Journal_Summary", df.Journal_summ, overwrite = T)
 ```
 
 
-# Author Summary Table
+#### Author Summary Table
 ```{r}
 df.Author_summ <- dbGetQuery(PADBcon, "SELECT Year, CASE WHEN Month <= 3 THEN '1' WHEN Month >= 4 AND Month <= 6 THEN '2' WHEN Month >= 7 AND Month <= 9 THEN '3' WHEN Month >= 10 THEN '4' END AS Quarter, FirstName, LastName, Author_id, count(DISTINCT PMID) AS NumArticles FROM AllSummaries GROUP BY LastName ORDER BY Author_id")
 dbWriteTable(PADBcon, "Author_Summary", df.Author_summ, overwrite = T)
