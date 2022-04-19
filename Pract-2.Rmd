@@ -706,6 +706,7 @@ SELECT * FROM Journal_Dimension;
 
 ### Part 3.1 Write queries using your data warehouse to explore whether the publications show a seasonal pattern.
 
+#### Create a plot shows Number of journal publications for each quarter from 2011-2013
 ```{sql connection = "PADBcon"}
 
 SELECT count(*)as count, Quarter  
@@ -764,7 +765,7 @@ ggplot(data=df1, aes(x=Quarter, y=count, group=1)) +
   geom_point(color='red')+labs(title="Number of journal publications for each quarter from 2011-2013")
 ```
 
-
+####Create a plot shows sum of journal publications by quarter
 ```{sql connection = "PADBcon"}
 
 SELECT count(*)as count, Quarter  
@@ -790,6 +791,69 @@ df3 <-dbGetQuery(PADBcon,sql)
 ggplot(df3,aes(Quarter,count, group=1))+geom_point(color='red')+geom_line()+labs(title="Sum of journal publications by quarter")
 ```
 
+####Create a plot shows number of journal publications by quarter and by author 3 and 4
+```{sql connection = "PADBcon"}
+DROP TABLE IF EXISTS Temp_Table
+```
+
+```{sql connection = "PADBcon"}
+CREATE TABLE Temp_Table as
+SELECT Author_Dimension.Author_id,History_Dimension.Year,History_Dimension.Month,Article_Fact.ISSN FROM Article_Fact,History_Dimension,Author_Dimension where History_Dimension.History_id=Article_Fact.History_id AND Article_Fact.PMID=Author_Dimension.PMID
+```
+
+```{sql connection = "PADBcon"}
+
+ALTER TABLE Temp_Table ADD Quarter int
+```
+
+```{sql connection = "PADBcon"}
+
+UPDATE Temp_Table SET Quarter=1 where Month in (1,2,3)
+```
+
+```{sql connection = "PADBcon"}
+
+UPDATE Temp_Table SET Quarter=2 where Month in (4,5,6)
+```
+
+```{sql connection = "PADBcon"}
+
+UPDATE Temp_Table SET Quarter=3 where Month in (7,8,9)
+```
+
+```{sql connection = "PADBcon"}
+
+UPDATE Temp_Table SET Quarter=4 where Month in (10,11,12)
+```
+
+```{sql connection = "PADBcon"}
+
+select Author_id, Year, Quarter, ISSN from Temp_Table
+```
+
+```{sql connection = "PADBcon"}
+   Select sum(count)as sum_count, Author_id, Quarter from (select count(*) as count,Author_id,Quarter from Temp_Table group by Author_id,Quarter ) group by Author_id
+```
+Choose Author 3 and 4 since Author 3 and 4 have written most of the articles
+```{sql connection = "PADBcon"}
+  select count(*) as count,Author_id,Quarter from Temp_Table group by Author_id,Quarter having Author_id==3 or Author_id==4
+```
+```{r}
+sql <- "select count(*) as count,Author_id,Quarter from Temp_Table group by Author_id,Quarter having Author_id==3 or Author_id==4"
+
+df5 <-dbGetQuery(PADBcon,sql)
+df5$Author_id = as.factor(df5$Author_id)
+
+
+ ggplot(data = df5, aes(x = Quarter, y = count)) + 
+  geom_line( aes(color = Author_id)) +
+  xlab('Quarter') +
+  ylab('count')+labs(title = 'Number of journal publications by quarter by author 3 and 4')
+```
+
+```{sql connection = "PADBcon"}
+DROP TABLE IF EXISTS Temp_Table
+```
 
 
 Closing DB connection
